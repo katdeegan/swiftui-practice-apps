@@ -6,8 +6,25 @@
 //
 
 import SwiftUI
+import TipKit
 
 struct ContentView: View {
+    // create STORED property showExchangeInfo
+    // @State - allows property to change state of view
+    @State var showExchangeInfo = false
+    @State var showSelectCurrency = false
+    @State var leftAmount = ""
+    @State var rightAmount = ""
+    
+    // "master" currency properties, need to bind currency proeprties in SelectCurrency / CurrencyIcon view to this property
+    @State var leftCurrency: Currency = .silverPiece
+    @State var rightCurrency: Currency = .goldPiece
+    
+    // boolean property - allows us to track where on screen we're currently focused
+    // which text field are we focusing on? this text field should be the one that is controlling the value of the other textfield
+    @FocusState var leftTyping
+    @FocusState var rightTyping
+    
     var body: some View {
         ZStack {
             // background image
@@ -35,19 +52,34 @@ struct ContentView: View {
                         // currency
                         HStack {
                             // currency image
-                            Image(.silverpiece)
+                            Image(leftCurrency.image)
                                 .resizable()
                                 .scaledToFit()
                                 .frame(height: 33)
                             
                             // currency text
-                            Text("Silver Piece")
+                            Text(leftCurrency.name)
                                 .font(.headline)
                                 .foregroundStyle(.white)
                         }
+                        .padding(.bottom,-5)
+                        .onTapGesture {
+                            showSelectCurrency.toggle()
+                        }
+                        .popoverTip(CurrencyTip(), arrowEdge: .bottom)
                         
                         // text field - user can type input
-                        Text("TextField")
+                        TextField("Amount", text: $leftAmount)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($leftTyping)
+                            .keyboardType(.decimalPad)
+                            .onChange(of: leftAmount) {
+                                if leftTyping {
+                                    rightAmount = leftCurrency.convert(leftAmount, to: rightCurrency)
+                                }
+                            } // if .focused(true), then exceute .onChange and update rightAmount
+                        
+                        //Binding<String> - user can change property + code can change property, indicate with $ prefix
                     }
                     
                     // Equal sign
@@ -63,31 +95,78 @@ struct ContentView: View {
                         // currency
                         HStack {
                             // currency text
-                            Text("Gold Piece")
+                            Text(rightCurrency.name)
                                 .font(.headline)
                                 .foregroundStyle(.white)
                             
                             // currency image
-                            Image(.goldpiece)
+                            Image(rightCurrency.image)
                                 .resizable()
                                 .scaledToFit()
                                 .frame(height: 33)
                         }
+                        .padding(.bottom,-5)
+                        .onTapGesture {
+                            showSelectCurrency.toggle()
+                        }
+                        
+                        // negative padding to make things closer
                         
                         // text field
-                        Text("text field")
+                        TextField("Amount", text: $rightAmount)
+                            .textFieldStyle(.roundedBorder)
+                            .multilineTextAlignment(.trailing)
+                            .focused($rightTyping)
+                            .keyboardType(.decimalPad)
+                            .onChange(of: rightAmount) {
+                                if rightTyping {
+                                    leftAmount = rightCurrency.convert(rightAmount, to: leftCurrency)
+                                }
+                            } // .onChange modifier can actually be added to entire ContentView (is not specifically associated with TextField)
+                    
                     }
                 }
+                .padding() // pushes currency conversion section inwards
+                .background(.black.opacity(0.5))
+                .clipShape(.capsule)
                 
                 Spacer()
                 
                 // info button
-                Image(systemName: "info.circle.fill")
-                    .font(.largeTitle)
-                    .foregroundStyle(.white)
+                HStack {
+                    Spacer()
+                    Button {
+                        showExchangeInfo.toggle()
+                        // ex print statement with string to debug in console
+                        //print("showExchangeInfo value: \(showExchangeInfo)")
+                    } label: {
+                        Image(systemName: "info.circle.fill")
+                            .font(.largeTitle)
+                            .foregroundStyle(.white)
+                    }
+                    .padding(.trailing)
+                }
+                //.border(.blue)
+                // testing that you put things in correct view by adding .border around view
             }
-            //.border(.blue)
-            // testing that you put things in correct view by adding .border around view
+            .task {
+                // allows us to run code in background when view appears
+                // run code to configure tipkit
+                try? Tips.configure()
+            }
+            .onChange(of: leftCurrency){
+                leftAmount = rightCurrency.convert(rightAmount, to: leftCurrency)
+            }
+            .onChange(of: rightCurrency){
+                rightAmount = leftCurrency.convert(leftAmount, to: rightCurrency)
+            }
+            .sheet(isPresented: $showExchangeInfo, content: {
+                // view we want to present
+                ExchangeInfo()
+            }) // sheet modifier can be added to any view (it has nothing to do with button, just watching showExchangeInfo property
+            .sheet(isPresented: $showSelectCurrency, content: {
+                SelectCurrency(topCurrency: $leftCurrency, bottomCurrency: $rightCurrency)
+            })
         }
     }
 }
